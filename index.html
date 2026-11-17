@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>INSY 2299 Grade Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap">
+<style>
+/* Layout: two-column planner. Grading items on the left, sticky summary (grade, bar, scenarios, final-exam targets) on the right; stacks with a fixed result bar on phones. */
+:root{
+  --bg:#faf7f8; --surface:#ffffff; --ink:#1d1a1b; --muted:#6a6165; --line:#e4dcdf; --hdr:#f3eff1;
+  --accent:#820028; --accent-ink:#ffffff; --tint:#f6e5eb; --range:rgba(130,0,40,.18);
+  --good:#2f7a4f; --warn:#9a5b00; --bad:#b3261e;
+  --display:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#161113; --surface:#201a1c; --ink:#f2ebed; --muted:#ab9fa4; --line:#3a3033; --hdr:#2a2225;
+    --accent:#e8839f; --accent-ink:#1d0a10; --tint:#3b1f28; --range:rgba(232,131,159,.22);
+    --good:#72c79a; --warn:#e3aa55; --bad:#f08a80; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#161113; --surface:#201a1c; --ink:#f2ebed; --muted:#ab9fa4; --line:#3a3033; --hdr:#2a2225;
+  --accent:#e8839f; --accent-ink:#1d0a10; --tint:#3b1f28; --range:rgba(232,131,159,.22);
+  --good:#72c79a; --warn:#e3aa55; --bad:#f08a80; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;color:var(--ink)}
+h1{font-size:2.1rem;line-height:1.15;font-weight:700}
+h2{font-size:1.2rem;font-weight:700}
+.eyebrow{font-size:.75rem;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.lede{color:var(--muted);max-width:65ch;margin:.5rem 0 0}
+.note{color:var(--muted);max-width:65ch;margin:0;font-size:.82rem}
+header.top{display:grid;gap:.35rem;margin-bottom:24px;border-bottom:2px solid var(--accent);padding-bottom:18px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:28px;align-items:start}
+aside.summary{position:sticky;top:max(16px, env(safe-area-inset-top, 0px));display:grid;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+
+/* Result */
+.result{display:grid;grid-template-columns:1fr auto;gap:4px 16px;align-items:center}
+.result .label{font-size:.8rem;color:var(--muted);grid-column:1/-1}
+.big{font-family:var(--display);font-size:3.4rem;line-height:1;font-weight:700}
+.letter{font-family:var(--display);font-size:2.4rem;font-weight:700;color:var(--accent-ink);background:var(--accent);
+  min-width:3.4rem;text-align:center;padding:.15rem .6rem;border-radius:8px;line-height:1.2}
+.raw{grid-column:1/-1;font-size:.85rem;color:var(--muted)}
+.rangeline{font-size:.85rem;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.rangeline b{font-weight:600}
+
+/* Grade bar */
+.bar{position:relative;height:34px;margin-top:14px;border-radius:6px;overflow:hidden;background:var(--hdr)}
+.band{position:absolute;top:0;bottom:0;border-right:1px solid var(--surface);display:flex;align-items:center;justify-content:center;
+  font-size:.68rem;font-weight:600;color:var(--muted)}
+.band.on{background:var(--tint);color:var(--accent)}
+.span{position:absolute;top:0;bottom:0;background:var(--range)}
+.marker{position:absolute;top:-2px;bottom:-2px;width:3px;margin-left:-1.5px;background:var(--accent)}
+.ticks{position:relative;height:18px;font-size:.7rem;color:var(--muted)}
+.ticks span{position:absolute;transform:translateX(-50%)}
+.ticks span:first-child{transform:none}
+.ticks span:last-child{transform:translateX(-100%)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.75rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* Scenario dial */
+.presets{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0}
+button{font:inherit;color:inherit;cursor:pointer}
+.preset{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 0;font-weight:600;font-size:.9rem}
+.preset:hover{border-color:var(--accent)}
+.preset[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.dialrow{display:grid;grid-template-columns:1fr 3.4rem;gap:10px;align-items:center}
+.dialval{font-weight:600;text-align:right}
+.hint{font-size:.8rem;color:var(--muted);margin:.4rem 0 0}
+
+/* Needed table */
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right}
+tr.current td{background:var(--tint);font-weight:600}
+.ok{color:var(--good);font-weight:600}
+.no{color:var(--muted)}
+.hard{color:var(--warn);font-weight:600}
+
+/* Items */
+.groups{display:grid;gap:22px}
+.group h2{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+.group h2 small{font-family:var(--body);font-size:.8rem;font-weight:500;color:var(--muted)}
+.items{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.item{display:grid;gap:8px;padding:14px 16px;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item.out{background:linear-gradient(90deg,var(--tint),var(--surface) 70%)}
+.head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;align-items:center}
+.name{font-weight:600}
+.name .w{font-weight:500;color:var(--muted);font-size:.85rem;margin-left:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;font-size:.78rem}
+.seg button{border:0;background:transparent;padding:3px 11px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);font-weight:600}
+.item.out .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.ctrl{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center}
+.score{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.score input{width:4.6rem;font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);text-align:right}
+.score .of{color:var(--muted);font-size:.85rem}
+.contrib{min-width:7.6rem;text-align:right;font-size:.85rem;color:var(--muted)}
+.contrib b{color:var(--ink);font-weight:600}
+.sub{font-size:.8rem;color:var(--muted)}
+.check{display:flex;align-items:center;gap:8px;font-size:.88rem}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:18px}
+.reset{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 14px}
+.reset:hover{border-color:var(--accent)}
+.status{font-size:.82rem;color:var(--muted)}
+
+/* Reference */
+.ref{margin-top:34px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:28px}
+.ref p,.ref li{color:var(--muted);font-size:.88rem;max-width:65ch}
+.ref ul{padding-left:1.1rem;margin:.4rem 0 0}
+.scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}
+.scale div{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface)}
+.scale b{font-family:var(--display);font-size:1.05rem;display:block}
+.scale span{font-size:.75rem;color:var(--muted)}
+
+.mobilebar{display:none}
+@media (max-width: 920px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  aside.summary{position:static}
+  .ref{grid-template-columns:minmax(0,1fr)}
+  .mobilebar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:5;justify-content:space-between;align-items:center;
+    background:var(--accent);color:var(--accent-ink);font-weight:600;
+    padding-top:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+  .mobilebar .mb-l{font-family:var(--display);font-size:1.3rem}
+  body{padding-bottom:64px}
+}
+@media (max-width: 520px){
+  h1{font-size:1.7rem}
+  .big{font-size:2.8rem}
+  .ctrl{grid-template-columns:minmax(0,1fr) auto}
+  .contrib{grid-column:1/-1;text-align:left}
+  .scale{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .band{font-size:.58rem}
+}
+@media (prefers-reduced-motion: no-preference){
+  .marker,.span{transition:left .15s ease, width .15s ease}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">INSY 2299 · Information Systems</div>
+    <h1>Grade Planner</h1>
+    <p class="lede">Enter the scores you already have (via Blackboard), then set how you expect the outstanding work to go. Your projected course grade updates as you move the sliders.</p>
+    <p class="note"><em>Note: The starting values are examples, not your scores. Replace them with the numbers on your Blackboard gradebook.</em></p>
+  </header>
+
+  <div class="layout">
+    <main class="groups" id="groups" aria-label="Grading items"></main>
+
+    <aside class="summary" aria-label="Projected grade">
+      <section class="panel">
+        <div class="result">
+          <div class="label">Projected course grade</div>
+          <div class="big" id="pct">–</div>
+          <div class="letter" id="letter">–</div>
+          <div class="raw" id="raw"></div>
+        </div>
+        <div class="bar" id="bar" aria-hidden="true"></div>
+        <div class="ticks" id="ticks" aria-hidden="true"></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>Projection</span><span><i style="background:var(--range)"></i>Possible range (0–100% on outstanding work)</span></div>
+        <div class="rangeline" id="rangeline"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Outstanding work scenario</h2>
+        <p class="hint" style="margin-top:.2rem">Sets every item marked <b>Outstanding</b> to the same score. Fine-tune each one afterwards.</p>
+        <div class="presets" id="presets"></div>
+        <div class="dialrow">
+          <input type="range" id="dial" min="0" max="100" step="1" value="85" aria-label="Assumed score on outstanding work, percent">
+          <div class="dialval" id="dialval">85%</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>What you need on the final</h2>
+        <p class="hint" style="margin-top:.2rem">Final exam score needed for each grade, keeping everything else as you set it.</p>
+        <table style="margin-top:8px">
+          <thead><tr><th>Grade</th><th class="num">Final exam</th></tr></thead>
+          <tbody id="needed"></tbody>
+        </table>
+      </section>
+    </aside>
+  </div>
+
+  <div class="tools">
+    <button class="reset" id="reset" type="button">Reset to example values</button>
+    <span class="status" id="status">Your entries are saved in this browser only. Nothing is sent anywhere.</span>
+  </div>
+
+  <section class="ref">
+    <div>
+      <h2>Grade scale</h2>
+      <div class="scale" id="scale"></div>
+    </div>
+    <div>
+      <h2>How the projection works</h2>
+      <ul>
+        <li>Each item counts by its weight in the syllabus. Weights total <b id="wsum">100</b>%.</li>
+        <li>Attendance &amp; Participation is worth 5 points. Submitting the Claude for Excel task earns 1 of them; attendance and participation make up the other 4.</li>
+        <li>Excel Tutorial Modules are scored out of 100 on Blackboard and each count 2 points toward the course grade: a score of 50 or higher earns both points, 25–49 earns 1 point, and below 25 earns 0.</li>
+        <li>This page gives an estimate. Your official grade is the one posted by your instructor.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div class="mobilebar" aria-hidden="true"><span>Projected grade</span><span class="mb-l" id="mb">–</span></div>
+
+<script>
+(function(){
+  "use strict";
+  // Grading items and weights (syllabus). max = points possible as shown on Blackboard.
+  // def = example starting value (typical section scores), not any student's grade.
+  var GROUPS = [
+    {k:"exams",   name:"Exams"},
+    {k:"assign",  name:"Assignments"},
+    {k:"modules", name:"Excel Tutorial Modules"},
+    {k:"part",    name:"Quizzes & Participation"}
+  ];
+  var ITEMS = [
+    {k:"midterm", g:"exams",   name:"Midterm Exam",               w:20, max:20,  step:0.1, def:18.5, out:false},
+    {k:"final",   g:"exams",   name:"Final Exam",                 w:25, max:100, step:1,   def:85,   out:true,  unit:"%"},
+    {k:"a1",      g:"assign",  name:"Excel Assignment #1",        w:5,  max:5,   step:0.1, def:4.5,  out:false},
+    {k:"a2",      g:"assign",  name:"Excel Assignment #2",        w:10, max:10,  step:0.1, def:9.5,  out:false},
+    {k:"pivot",   g:"assign",  name:"Pivot Table Assignment",     w:7,  max:7,   step:0.1, def:6,    out:true},
+    {k:"a3",      g:"assign",  name:"Excel Assignment #3",        w:5,  max:5,   step:0.1, def:4.5,  out:true},
+    {k:"is",      g:"assign",  name:"IS Deliverable",             w:10, max:10,  step:0.1, def:9,    out:false},
+    {k:"m2",      g:"modules", name:"Excel Tutorial Module #2",   w:2,  max:100, step:1,   def:88,   out:false, tier:true},
+    {k:"m3",      g:"modules", name:"Excel Tutorial Module #3",   w:2,  max:100, step:1,   def:100,  out:false, tier:true},
+    {k:"m4",      g:"modules", name:"Excel Tutorial Module #4",   w:2,  max:100, step:1,   def:80,   out:false, tier:true},
+    {k:"m7",      g:"modules", name:"Excel Tutorial Module #7",   w:2,  max:100, step:1,   def:80,   out:false, tier:true},
+    {k:"quiz",    g:"part",    name:"Quizzes",                    w:5,  max:100, step:1,   def:85,   out:true,  unit:"%"},
+    // Attendance: slider covers the 4 attendance/participation points; the Claude for Excel task adds 1.
+    {k:"att",     g:"part",    name:"Attendance & Participation", w:5,  max:4,   step:0.1, def:3.5,  out:true,  att:true}
+  ];
+  var BONUS = 1; // Claude for Excel task, out of the 5 attendance points
+  var SCALE = [[93,"A","93–100"],[90,"A-","90–92"],[87,"B+","87–89"],[83,"B","83–86"],[80,"B-","80–82"],
+               [77,"C+","77–79"],[73,"C","73–76"],[70,"C-","70–72"],[60,"D","60–69"],[0,"F","0–59"]];
+  var PRESETS = [60,70,80,90,100];
+  var KEY = "insy2299-grade-planner-v1";
+  var FINAL = ITEMS.filter(function(i){return i.k==="final";})[0];
+
+  var state = defaults();
+  try { var saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved && saved.vals) merge(saved); } catch(e) {}
+
+  function defaults(){
+    var s = {ver:2, vals:{}, out:{}, claude:true, dial:85, custom:false};
+    ITEMS.forEach(function(i){ s.vals[i.k]=i.def; s.out[i.k]=i.out; });
+    return s;
+  }
+  function merge(saved){
+    ITEMS.forEach(function(i){
+      var v = Number(saved.vals[i.k]); if (isFinite(v)) state.vals[i.k] = clamp(v,0,i.max);
+      // v1 saves predate Quizzes defaulting to Outstanding, so keep the new default for that flag
+      if (saved.out && typeof saved.out[i.k]==="boolean" && !(i.k==="quiz" && saved.ver!==2)) state.out[i.k] = saved.out[i.k];
+    });
+    if (typeof saved.claude==="boolean") state.claude = saved.claude;
+    if (isFinite(Number(saved.dial))) state.dial = clamp(Number(saved.dial),0,100);
+    state.custom = !!saved.custom;
+  }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} }
+  function clamp(v,a,b){ return Math.min(b, Math.max(a, v)); }
+  function snap(v,step){ return Math.round(v/step)*step; }
+  function fmt(v,step){ return step<1 ? (Math.round(v*10)/10).toFixed(1) : String(Math.round(v)); }
+
+  // Weighted contribution of an item (points out of its weight)
+  function earned(i, v){
+    if (i.att) return ((v + (state.claude?BONUS:0)) / (i.max+BONUS)) * i.w;
+    if (i.tier) return v >= 50 ? i.w : (v >= 25 ? i.w/2 : 0);   // 50+ = 2 pts, 25-49 = 1 pt, below 25 = 0
+    return (v / i.max) * i.w;
+  }
+  function total(override){
+    var t = 0;
+    ITEMS.forEach(function(i){
+      var v = state.vals[i.k];
+      if (override && state.out[i.k]) v = override==="min" ? 0 : i.max;
+      t += earned(i, v);
+    });
+    return t;
+  }
+  function rounded(x){ return Math.round(Math.round(x*1e6)/1e6); }   // 92.5 -> 93
+  function letterOf(pct){ for (var j=0;j<SCALE.length;j++) if (pct>=SCALE[j][0]) return SCALE[j][1]; return "F"; }
+
+  // ---- Build items
+  var groupsEl = document.getElementById("groups");
+  var rows = {};
+  GROUPS.forEach(function(g){
+    var items = ITEMS.filter(function(i){return i.g===g.k;});
+    var wsum = items.reduce(function(a,i){return a+i.w;},0);
+    var sec = document.createElement("section"); sec.className="group";
+    sec.innerHTML = '<h2>'+g.name+'<small>'+wsum+'% of course grade</small></h2><div class="items"></div>';
+    var list = sec.querySelector(".items");
+    items.forEach(function(i){
+      var row = document.createElement("div"); row.className="item";
+      var maxLabel = i.unit==="%" ? "%" : "/ "+i.max;
+      row.innerHTML =
+        '<div class="head"><div class="name">'+esc(i.name)+'<span class="w">'+i.w+'%</span></div>'+
+        '<div class="seg" role="group" aria-label="Status of '+esc(i.name)+'">'+
+          '<button type="button" data-s="graded" id="sg-'+i.k+'">Graded</button>'+
+          '<button type="button" data-s="out" id="so-'+i.k+'">Outstanding</button></div></div>'+
+        (i.att ? '<div class="sub">Attendance and participation, out of 4 points</div>' : '')+
+        (i.tier ? '<div class="sub">50 or higher earns 2 points, 25–49 earns 1 point, below 25 earns 0</div>' : '')+
+        '<div class="ctrl">'+
+          '<input type="range" id="r-'+i.k+'" min="0" max="'+i.max+'" step="'+i.step+'" aria-label="'+esc(i.name)+' score">'+
+          '<label class="score"><input type="number" id="n-'+i.k+'" min="0" max="'+i.max+'" step="'+i.step+'" inputmode="decimal" aria-label="'+esc(i.name)+' score"><span class="of">'+maxLabel+'</span></label>'+
+          '<div class="contrib" id="c-'+i.k+'"></div>'+
+        '</div>'+
+        (i.att ? '<label class="check"><input type="checkbox" id="claude"> Claude for Excel task submitted (+1 point)</label>' : '');
+      list.appendChild(row);
+      var r = row.querySelector("#r-"+i.k), n = row.querySelector("#n-"+i.k);
+      rows[i.k] = {row:row, r:r, n:n, c:row.querySelector("#c-"+i.k), g:row.querySelector("#sg-"+i.k), o:row.querySelector("#so-"+i.k)};
+      r.addEventListener("input", function(){ state.vals[i.k]=Number(r.value); n.value=fmt(state.vals[i.k],i.step); clearPreset(); update(); });
+      n.addEventListener("input", function(){ var v=parseFloat(n.value); if (isFinite(v)) { state.vals[i.k]=clamp(v,0,i.max); r.value=state.vals[i.k]; clearPreset(); update(); } });
+      n.addEventListener("change", function(){ n.value=fmt(state.vals[i.k],i.step); });
+      row.querySelector(".seg").addEventListener("click", function(e){
+        var b = e.target.closest("button"); if (!b) return;
+        state.out[i.k] = b.getAttribute("data-s")==="out"; update();
+      });
+      if (i.att){
+        var cb = row.querySelector("#claude");
+        cb.addEventListener("change", function(){ state.claude = cb.checked; update(); });
+      }
+    });
+    groupsEl.appendChild(sec);
+  });
+  document.getElementById("wsum").textContent = ITEMS.reduce(function(a,i){return a+i.w;},0);
+
+  function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+
+  // ---- Scenario presets
+  var presetsEl = document.getElementById("presets"), dial = document.getElementById("dial"), dialval = document.getElementById("dialval");
+  PRESETS.forEach(function(p){
+    var b = document.createElement("button"); b.type="button"; b.className="preset"; b.textContent=p+"%"; b.setAttribute("data-p",p); b.id="p-"+p;
+    b.addEventListener("click", function(){ applyScenario(p); });
+    presetsEl.appendChild(b);
+  });
+  dial.addEventListener("input", function(){ applyScenario(Number(dial.value)); });
+  function applyScenario(p){
+    state.dial = p; state.custom = false;
+    ITEMS.forEach(function(i){ if (state.out[i.k]) state.vals[i.k] = clamp(snap(p/100*i.max, i.step),0,i.max); });
+    syncInputs(); update();
+  }
+
+  function clearPreset(){ state.custom = true; }
+
+  // ---- Grade bar (scale 50–100%)
+  var LO = 50, HI = 100;
+  function pos(x){ return (clamp(x,LO,HI)-LO)/(HI-LO)*100; }
+  var bar = document.getElementById("bar"), bands = [];
+  for (var j=SCALE.length-1;j>=0;j--){
+    var lo = j===SCALE.length-1 ? LO : SCALE[j][0]-0.5, hi = j===0 ? HI : SCALE[j-1][0]-0.5;
+    var d = document.createElement("div"); d.className="band"; d.textContent=SCALE[j][1];
+    d.style.left=pos(lo)+"%"; d.style.width=(pos(hi)-pos(lo))+"%"; d.setAttribute("data-l",SCALE[j][1]);
+    bar.appendChild(d); bands.push(d);
+  }
+  var span = document.createElement("div"); span.className="span"; bar.appendChild(span);
+  var marker = document.createElement("div"); marker.className="marker"; bar.appendChild(marker);
+  document.getElementById("ticks").innerHTML = [50,60,70,80,90,100].map(function(t){return '<span style="left:'+pos(t)+'%">'+t+'%</span>';}).join("");
+
+  // ---- Scale reference
+  document.getElementById("scale").innerHTML = SCALE.map(function(s){return '<div><b>'+s[1]+'</b><span>'+s[2]+'%</span></div>';}).join("");
+
+  // ---- Update
+  var els = {pct:byId("pct"), letter:byId("letter"), raw:byId("raw"), rangeline:byId("rangeline"), needed:byId("needed"), mb:byId("mb")};
+  function byId(x){ return document.getElementById(x); }
+
+  function syncInputs(){
+    ITEMS.forEach(function(i){ rows[i.k].r.value = state.vals[i.k]; rows[i.k].n.value = fmt(state.vals[i.k], i.step); });
+    var cb = byId("claude"); if (cb) cb.checked = state.claude;
+
+  }
+
+  function update(){
+    var t = total(), r = rounded(t), L = letterOf(r);
+    els.pct.textContent = r+"%";
+    els.letter.textContent = L;
+    els.raw.textContent = "Rounded to the nearest whole percent";
+    els.mb.textContent = r+"% · "+L;
+
+    var anyOut = ITEMS.some(function(i){return state.out[i.k];});
+    var mn = total("min"), mx = total("max"), rmn = rounded(mn), rmx = rounded(mx);
+    els.rangeline.innerHTML = anyOut
+      ? 'Possible range: <b>'+rmn+'% ('+letterOf(rmn)+')</b> if you score 0 on all outstanding work, up to <b>'+rmx+'% ('+letterOf(rmx)+')</b> with full marks.'
+      : 'No items are marked outstanding, so this is your final result.';
+    span.style.left = pos(mn)+"%"; span.style.width = (pos(mx)-pos(mn))+"%";
+    marker.style.left = pos(t)+"%";
+    bands.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-l")===L); });
+
+    ITEMS.forEach(function(i){
+      var o = rows[i.k], out = state.out[i.k];
+      o.row.classList.toggle("out", out);
+      o.g.setAttribute("aria-pressed", String(!out));
+      o.o.setAttribute("aria-pressed", String(out));
+      o.c.innerHTML = '<b>'+earned(i, state.vals[i.k]).toFixed(2)+'</b> of '+i.w+' pts';
+    });
+
+    // Final exam needed per grade (cutoff = threshold - 0.5 because of rounding)
+    var rest = t - earned(FINAL, state.vals.final), html = "";
+    SCALE.slice(0, SCALE.length-1).forEach(function(s){
+      var cut = s[0]-0.5, need = (cut - rest)/FINAL.w*100, cell;
+      if (need <= 0) cell = '<span class="ok">Secured</span>';
+      else if (need > 100) cell = '<span class="no">Out of reach</span>';
+      else cell = '<span class="'+(need>90?"hard":"")+'">'+(Math.ceil(need*10)/10).toFixed(1)+'%</span>';
+      html += '<tr'+(s[1]===L?' class="current"':'')+'><td>'+s[1]+'</td><td class="num">'+cell+'</td></tr>';
+    });
+    els.needed.innerHTML = html;
+
+    dial.value = state.dial; dialval.textContent = state.custom ? "custom" : state.dial+"%";
+    Array.prototype.forEach.call(presetsEl.children, function(b){
+      b.setAttribute("aria-pressed", String(!state.custom && Number(b.getAttribute("data-p"))===state.dial));
+    });
+    save();
+  }
+
+  byId("reset").addEventListener("click", function(){
+    state = defaults(); syncInputs(); update();
+    byId("status").textContent = "Reset to the example values.";
+  });
+
+  syncInputs();
+  update();
+})();
+</script>
+</body>
+</html>
