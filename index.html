@@ -245,7 +245,7 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
     {k:"a2",      g:"assign",  name:"Excel Assignment #2",        w:10, max:10,  step:0.1, def:9.5,  out:false},
     {k:"pivot",   g:"assign",  name:"Pivot Table Assignment",     w:7,  max:7,   step:0.1, def:6,    out:true},
     {k:"a3",      g:"assign",  name:"Excel Assignment #3",        w:5,  max:5,   step:0.1, def:4.5,  out:true},
-    {k:"is",      g:"assign",  name:"IS Deliverable",             w:10, max:10,  step:0.1, def:9,    out:false},
+    {k:"is",      g:"assign",  name:"IS Deliverable",             w:10, max:10,  step:0.1, def:9,    out:true},
     {k:"m2",      g:"modules", name:"Excel Tutorial Module #2",   w:2,  max:100, step:1,   def:88,   out:false, tier:true},
     {k:"m3",      g:"modules", name:"Excel Tutorial Module #3",   w:2,  max:100, step:1,   def:100,  out:false, tier:true},
     {k:"m4",      g:"modules", name:"Excel Tutorial Module #4",   w:2,  max:100, step:1,   def:80,   out:false, tier:true},
@@ -265,15 +265,16 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
   try { var saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved && saved.vals) merge(saved); } catch(e) {}
 
   function defaults(){
-    var s = {ver:2, vals:{}, out:{}, claude:true, dial:85, custom:false};
+    var s = {ver:3, vals:{}, out:{}, claude:true, dial:85, custom:false};
     ITEMS.forEach(function(i){ s.vals[i.k]=i.def; s.out[i.k]=i.out; });
     return s;
   }
   function merge(saved){
     ITEMS.forEach(function(i){
       var v = Number(saved.vals[i.k]); if (isFinite(v)) state.vals[i.k] = clamp(v,0,i.max);
-      // v1 saves predate Quizzes defaulting to Outstanding, so keep the new default for that flag
-      if (saved.out && typeof saved.out[i.k]==="boolean" && !(i.k==="quiz" && saved.ver!==2)) state.out[i.k] = saved.out[i.k];
+      // Older saves predate Quizzes (v2) and IS Deliverable (v3) defaulting to Outstanding, so keep the new default for those flags
+      var ver = Number(saved.ver) || 1, stale = (i.k==="quiz" && ver<2) || (i.k==="is" && ver<3);
+      if (saved.out && typeof saved.out[i.k]==="boolean" && !stale) state.out[i.k] = saved.out[i.k];
     });
     if (typeof saved.claude==="boolean") state.claude = saved.claude;
     if (isFinite(Number(saved.dial))) state.dial = clamp(Number(saved.dial),0,100);
